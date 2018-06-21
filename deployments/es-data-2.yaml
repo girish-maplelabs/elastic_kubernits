@@ -1,0 +1,96 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: es-data-2
+  labels:
+    app: es-elasticsearch
+    chart: "elasticsearch-0.2.2"
+    release: "es"
+    heritage: "Tiller"
+    component: es-elasticsearch
+    role: data
+spec:
+  #replicas: 2
+  template:
+    metadata:
+      labels:
+        release: "es"
+        component: es-elasticsearch
+        role: data
+    spec:
+      nodeSelector:
+        node-role: search3
+      initContainers:
+      - name: init-sysctl
+        image: busybox:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - sysctl
+        - -w
+        - vm.max_map_count=262144
+        securityContext:
+          privileged: true
+      containers:
+      - name: es-data-2
+        securityContext:
+            privileged: false
+            capabilities:
+                add:
+                    - IPC_Lock
+                    - SYS_RESOURCE
+        image: girishmaplelabs/elasticsearch:6.2.4
+        imagePullPolicy: Always
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: DISCOVERY_SERVICE
+          value: elasticsearch-discovery
+        - name: CLUSTER_NAME
+          value: "profile_cluster"
+        - name: NUMBER_OF_MASTERS
+          value: "1"
+        - name: NODE_MASTER
+          value: "false"
+        - name: NODE_INGEST
+          value: "true"
+        - name: HTTP_ENABLE
+          value: "false"
+        - name: NODE_DATA
+          value: "true"
+        - name: NETWORK_HOST
+          value: "0.0.0.0"
+        - name: MAX_LOCAL_STORAGE_NODES
+          value: "10"
+        - name: ES_JAVA_OPTS
+          value: -Xms4g -Xmx4g
+        - name: PROCESSORS
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.cpu
+        resources:
+          requests:
+            memory: 4gi
+          limits:
+            cpu: 1
+        ports:
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        livenessProbe:
+          tcpSocket:
+            port: transport
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        volumeMounts:
+        - name: elasticdir
+          mountPath: /data
+      volumes:
+          - name: elasticdir
+            hostPath:
+                path: /data

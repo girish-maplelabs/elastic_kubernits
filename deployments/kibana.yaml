@@ -1,0 +1,39 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata: 
+  labels: 
+    component: kibana
+  name: kibana
+spec: 
+  replicas: 1
+  selector: 
+    matchLabels: 
+      component: kibana
+  template: 
+    metadata: 
+      labels: 
+        component: kibana
+    spec: 
+      containers: 
+        - 
+          env: 
+            - 
+              name: CLUSTER_NAME
+              value: profile_cluster
+            - 
+              name: ELASTICSEARCH_URL
+              value: "http://elasticsearch:9200"
+          image: "docker.elastic.co/kibana/kibana-oss:6.2.4"
+          imagePullPolicy: IfNotPresent
+          name: kibana
+          ports: 
+            - 
+              containerPort: 5601
+              name: http
+          resources: 
+            limits: 
+              cpu: 1000m
+            requests: 
+              cpu: 100m
+      nodeSelector: 
+        node-role: kibana_node

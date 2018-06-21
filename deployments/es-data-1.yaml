@@ -1,0 +1,122 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: es-data-1
+  labels:
+    app: es-elasticsearch
+    chart: "elasticsearch-0.2.2"
+    release: "es"
+    heritage: "Tiller"
+    component: es-elasticsearch
+    role: data
+spec:
+  #replicas: 2
+  template:
+    metadata:
+      labels:
+        release: "es"
+        component: es-elasticsearch
+        role: data
+    spec:
+      nodeSelector:
+        node-role: es_data_node
+      initContainers:
+      - name: init-sysctl
+        image: busybox:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - sysctl
+        - -w
+        - vm.max_map_count=262144
+        securityContext:
+          privileged: true
+      - name: volume-mount-hack
+        image: girishmaplelabs/elasticsearch:6.2.4
+        command:
+          - sh
+          - -c
+          - 'chmod -R a+rwx /usr/share/elasticsearch/es_data'
+        volumeMounts:
+        - name: elasticdir
+          mountPath: /usr/share/elasticsearch/es_data
+        securityContext:
+          runAsUser: 0
+      containers:
+      - name: es-data-1
+        securityContext:
+            privileged: false
+            capabilities:
+                add:
+                  - IPC_LOCK
+                  - SYS_RESOURCE
+        image: girishmaplelabs/elasticsearch:6.2.4
+        imagePullPolicy: Always
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: DISCOVERY_SERVICE
+          value: elasticsearch-discovery
+        - name: CLUSTER_NAME
+          value: "profile_cluster"
+        - name: NUMBER_OF_MASTERS
+          value: "1"
+        - name: NODE_MASTER
+          value: "false"
+        - name: NODE_INGEST
+          value: "true"
+        - name: HTTP_ENABLE
+          value: "false"
+        - name: NODE_DATA
+          value: "true"
+        - name: NETWORK_HOST
+          value: "0.0.0.0"
+        - name: MAX_LOCAL_STORAGE_NODES
+          value: "10"
+        - name: HTTP_CORS_ENABLE
+          value: "true"
+        - name: HTTP_CORS_ALLOW_ORIGIN
+          value: "true"
+        - name: ES_JAVA_OPTS
+          value: -Xms4g -Xmx4g
+        - name: PROCESSORS
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.cpu
+        resources:
+          limits:
+            cpu: 1
+        ports:
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        livenessProbe:
+          failureThreshold: 3
+          periodSeconds: 120
+          successThreshold: 1
+          tcpSocket:
+            port: transport
+          timeoutSeconds: 10
+          initialDelaySeconds: 20
+     #   volumeMounts:
+     #   - name: storage
+     #     mountPath: /usr/share/elasticsearch/es_data
+     # volumes:
+     #     - emptyDir:
+     #         medium: ""
+     #       name: storage
+        volumeMounts:
+        - name: elasticdir
+          mountPath: /usr/share/elasticsearch/es_data
+          #securityContext:
+          #  fsGroup: 1000
+          #  runAsUser: 1000
+      volumes:
+          - name: elasticdir
+            hostPath:
+                path: /data
